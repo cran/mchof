@@ -1,22 +1,22 @@
 #' 
-#' @description mcFilter extracts the elements of a vector for 
-#' which the function \code{f} returns \code{TRUE}, in parallel
+#' @description mcFilter extracts the elements of a vector or list for 
+#' which the function \code{f} returns \code{TRUE}, in parallel.
 #' 
 #' @title mcFilter
 #' @author Ryan Grannell
 #' 
 #' @export
 #' @param f a unary function that returns a boolean value
-#' @param x a vector
+#' @param x a list or vector
 #' @param paropts a list of parameters to be handed to 
 #'    \code{mclapply} (see details)
 #'    
-#' @details mcFilter returns the elements of x for which f returns TRUE. 
-#' NA values obtained during logical filtering
+#' @details mcFilter applies f to each element of x, coerces the result to a logical value, and returns the values
+#' for which f returns TRUE. NA values obtained during logical filtering
 #' are assumed to be FALSE, as with \code{Filter}. The user can modify this behaviour
 #' by making sure the argument f returns TRUE is a value is NA under coersion.
 #' 
-#' @seealso see \code{\link{Filter}} for the non-parallel equivelant of this 
+#' @seealso see \code{\link{Filter}} for a non-parallel equivelant of this 
 #'     function, \code{\link{mclapply}} for more details about the parallel
 #'     backend being employed. 
 #'    
@@ -43,10 +43,11 @@
 #' mcFilter(
 #'     f = function(pair){
 #'         val <- sum(unlist(pair))
-#'  	   if(val > 2 && val < 10) TRUE else FALSE
+#'  	   if(val > 8) TRUE else FALSE
 #'     }, 
 #'     x = apply(combn(8, 3), 2, list),
 #'     paropts = list(mc.cores = 2))  
+#' @keywords mcFilter
 
 mcFilter <- function (f, x, paropts = NULL) {
 	# multicore version of the Filter function

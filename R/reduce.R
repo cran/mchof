@@ -1,14 +1,15 @@
 #' @title mcReduce
 #' 
 #' @export
-#' @description \code{mcReduce} can be used as a parallel replacement for a 
+#' @description mcReduce applies an associative binary function to a list,
+#' returning a single value
+#' 
+#' @details \code{mcReduce} can be used as a parallel replacement for a 
 #' subclass of problems that can be solved with \code{Reduce} ; parallelising 
 #' \code{Reduce} is only possible when the function f is associative; in infix 
-#' notation that is
-#' 
-#' \code{(x1 f x2) f x3} is equivalent to \code{x1 f (x2 f x3)}. In practicality
-#' this means that the order in which the Reduce is carried out isn't important,
-#' so several tasks can be carried out in parallel.
+#' notation that is \code{(x1 f x2) f x3} is equivalent to \code{x1 f (x2 f x3)}. 
+#' In practicality this means that the order in which the reduce is carried out isn't 
+#' important, so several tasks can be carried out in parallel.
 #'  
 #'  A binary function with associativity is the plus operator;
 #'  \code{1 + (2 + 3) == (1 + 2) + 3}.
@@ -17,16 +18,16 @@
 #'   
 #' @name mcReduce
 #' 
-#' @param f a binary function
 #' @param x a vector or list
 #' @param paropts paropts a list of parameters to be handed to 
 #'    mclapply (see details and \code{\link{mclapply}})
+#' @param f a binary function
 #'
 #' @examples 
 #' mcReduce(get('+'), 1:10)
 #' mcReduce(rbind, list(c(1, 2), c(3, 4), c(5, 6)))
 #' @seealso \code{\link{Reduce}}
-#'
+#' @keywords mcReduce
 
 mcReduce <- function (f, x, paropts = NULL) {
 	# multicore associative f only version of Reduce
@@ -51,6 +52,7 @@ mcReduce <- function (f, x, paropts = NULL) {
 	}
 
 	if (is.null(x)) return(NULL)
+	if (is.list(x) && length(x) == 0) return(list())
 	if (length(x) == 1) return(x)
 	if (is.factor(x)) stop('x may not be a factor')
 	

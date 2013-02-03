@@ -32,8 +32,3 @@ test_that("test that the answer is invariant under mc.cores and right", {
 			list(mc.cores = 4)), 5)
 	
 })
-
-
-
-
-

@@ -1,7 +1,7 @@
 #' @title mcPosition
 #' 
-#' @description Returns the index of the first (or last) position in a vector or list matching 
-#' a predicate function, in parallel. 
+#' @description Returns the index of the first (or last) position in a vector or 
+#' list matching a predicate function, in parallel. 
 #'  
 #' @export
 #' @param f a unary function that returns either \code{TRUE} or \code{FALSE}
@@ -17,12 +17,13 @@
 #' @seealso see \code{\link{Position}} for the non-parallel equivelant of this 
 #'     function, \code{\link{mclapply}} for more details about the parallel
 #'     backend being employed. 
-#'    
+#' 
 #' @examples
 #' # find the index of the first position of the first non-NA value in a vector
 #' mcPosition(function(x) !is.na(x), c(10, NA, 11:20), paropts = list(mc.cores = 2))
 #' # get the index of the first value larger than five from the rightmost index of a vector
 #' mcPosition(function(x) x > 5, 1:10, right=TRUE, paropts=list(mc.cores = 2))       
+#' @keywords mcPosition
 
 mcPosition <- function (f, x, right=FALSE, paropts=NULL) {
 	# multicore version of Position
@@ -36,28 +37,28 @@ mcPosition <- function (f, x, right=FALSE, paropts=NULL) {
 		stop('right must be TRUE or FALSE')
 	}
 	ncores <- if (!is.null(paropts) && 'mc.cores' %in% names(paropts)) {
-		paropts$mc.cores
+		abs(paropts$mc.cores)
+	} else if (!is.null(getOption('mc.cores')))  {
+		abs(getOption('mc.cores'))
 	} else 1
 	
-	# this matrix determines which tasks are done in parallel
+	steps_needed <- ceiling(length(x)/ncores)
 	
-	job_ind <- matrix(NA,
-		nrow = ncores,
-		ncol = ceiling(length(x)/ncores))
+	job_ind <- function (i) {
 	
-	job_ind[seq_along(x)] <- seq_along(x)
-	
-	job_ind <- if (right && ncores > 1) {
-		t(apply(job_ind, 2, rev))
-	} else t(job_ind)
+		stopifnot(1 + ((i-1) * ncores) <= length(x))
+		seq(
+	 		from = 1 + ((i-1) * ncores),
+	 		to = min((i * ncores), length(x)))
+	}
 	
 	job_direction <- if (right) {
-		nrow(job_ind):1
-	} else 1:nrow(job_ind)
+		steps_needed:1
+	} else 1:steps_needed
 	
 	for (i in job_direction) {
-		jobs <- job_ind[i,]
-		jobs <- jobs[!is.na(jobs)]
+
+		jobs <- job_ind(i)
 		
 		checked_ind <- unlist(call_mclapply(
 			f = function(j){
@@ -67,10 +68,10 @@ mcPosition <- function (f, x, right=FALSE, paropts=NULL) {
 			},		
 			x = jobs, paropts = paropts))
 		
-		checked_ind <- checked_ind[!is.nan(checked_ind)]
+		matched_ind <- checked_ind[!is.nan(checked_ind)]
 		
-		if (length(checked_ind > 0)) {
-			return(if (right) max(checked_ind) else min(checked_ind))
+		if (length(matched_ind) > 0) {
+			return(if (right) max(matched_ind) else min(matched_ind))
 		}
 	}
 	integer(0)
@@ -89,6 +90,9 @@ mcPosition <- function (f, x, right=FALSE, paropts=NULL) {
 #' @param paropts a list of parameters to be handed to 
 #'    mclapply (see details and \code{\link{mclapply}})
 #' 
+#' @details as with mcFilter, NA's obtained after logical coercion are assumed to be
+#' FALSE.
+#' 
 #' @seealso see \code{\link{Find}} for the non-parallel equivelant of this 
 #'     function, \code{\link{mclapply}} for more details about the parallel
 #'     backend being employed. 
@@ -98,7 +102,7 @@ mcPosition <- function (f, x, right=FALSE, paropts=NULL) {
 #'         grepl('^[J].*$', x)
 #'     },
 #'     c('mark', 'sam', 'Jane', 'Peter'))
-#'
+#' @keywords mcFind
 
 mcFind <- function (f, x, right = FALSE, paropts = NULL) {
 	# multicore version of Find
@@ -114,9 +118,3 @@ mcFind <- function (f, x, right = FALSE, paropts = NULL) {
 	}
 	else integer(0)
 }
-
-
-
-
-
-

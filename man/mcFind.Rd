@@ -21,6 +21,10 @@
   Returns the value of the first element of x that meets
   the predicate f.
 }
+\details{
+  as with mcFilter, NA's obtained after logical coercion
+  are assumed to be FALSE.
+}
 \examples{
 mcFind(
     function(x){
@@ -36,4 +40,5 @@ mcFind(
   this function, \code{\link{mclapply}} for more details
   about the parallel backend being employed.
 }
+\keyword{mcFind}
 
