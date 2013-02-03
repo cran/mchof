@@ -4,75 +4,81 @@
 #' @description mcReduce applies an associative binary function to a list,
 #' returning a single value
 #' 
-#' @details \code{mcReduce} can be used as a parallel replacement for a 
-#' subclass of problems that can be solved with \code{Reduce} ; parallelising 
-#' \code{Reduce} is only possible when the function f is associative; in infix 
-#' notation that is \code{(x1 f x2) f x3} is equivalent to \code{x1 f (x2 f x3)}. 
-#' In practicality this means that the order in which the reduce is carried out isn't 
-#' important, so several tasks can be carried out in parallel.
+#' @details mcReduce can be used as a parallel alternative to Reduce if
+#' and only if the function f is associative; that is
+#' 
+#' \code{(a f b) f c == a f (b f c)}, 
+#' 
+#' where a, b or c are values that f takes. For example, plus is an associative 
+#' binary operator, since
+#' 
+#' \code{(a + b) + c == a + (b + c)}
+#' 
+#' for any number a, b or c. Minus does not have this property, so it is not 
+#' suitable for use with mcFold. Only associative binary functions can be folded 
+#' or reduced in parallel. 
 #'  
-#'  A binary function with associativity is the plus operator;
-#'  \code{1 + (2 + 3) == (1 + 2) + 3}.
-#'  Subtraction does not have this property \code{1 - (2 - 3) != (1 - 2) - 3},
-#'  so it should not be used as a binary function for \code{mcReduce} 
+#' When x only has one element it is returned immediately, as there is no way
+#' to apply a binary function to a length-one list.
+#' 
+#' A likely source of errors when using mcFold
+#' or mcReduce is using a function without the type signature [A] -> [A] -> [A] (ie. a function that
+#' takes two of a thing, and returns one of a thing).
 #'   
 #' @name mcReduce
 #' 
-#' @param x a vector or list
-#' @param paropts paropts a list of parameters to be handed to 
-#'    mclapply (see details and \code{\link{mclapply}})
-#' @param f a binary function
+#' @param f a binary function that takes two of "a thing" and returns one of a "thing".
+#' @param x a list or vector.
+#' @param paropts a list of parameters to be handed to 
+#'    mclapply (see \link{mchof}).
+#'    
+#' @return returns the result of x1 f x2 f x3 f x4 f ... xn, the value of which
+#' is dependent on the function f, and the contents of x. Returns a length-zero or
+#' length-one value of x as is.
 #'
-#' @examples 
-#' mcReduce(get('+'), 1:10)
-#' mcReduce(rbind, list(c(1, 2), c(3, 4), c(5, 6)))
+#' @example inst/examples/examples-reduce.r
 #' @seealso \code{\link{Reduce}}
 #' @keywords mcReduce
 
 mcReduce <- function (f, x, paropts = NULL) {
-	# multicore associative f only version of Reduce
-	
-	to_pairs <- function (flatlist) {
-		# takes a list [x1, ..., xn], returns a list of pairs
-		# [ [x1, x2], ..., [x(n-1), xn || NULL] ]. If flatlist is odd length 
-		# the last element in the last list is NULL.
-			
-		Map( function(i) {
-			
-				if (i == length(flatlist)) {
-					list(
-						first = flatlist[[i]],
-						second = NULL)
-				} else {
-					list(
-						first = flatlist[[i]],
-						second = flatlist[[i+1]])
-				}
-			}, seq(from = 1, by = 2, len = ceiling(length(flatlist)/2)))
-	}
+	# swaps the commas in x1, x2, x3, ..., xn with
+	# the infix function f.
 
-	if (is.null(x)) return(NULL)
-	if (is.list(x) && length(x) == 0) return(list())
-	if (length(x) == 1) return(x)
-	if (is.factor(x)) stop('x may not be a factor')
+	iterateWhile <- function (f, p, x) {
+		# pipe the output x of f into f, 
+		# until p(x) is true
+		
+		while( !p(x) ) x <- f(x)
+		x
+	} 
+	
+	func_call <- paste0( deparse(match.call()), ':' )
+
+	missing(f) %throws% stopf (
+		'%s a function (or function name) f is required but was missing',
+		func_call)	
+	missing(x) %throws% stopf (
+		'%s list/vector x is required but was missing',
+		func_call)
 	
 	f <- match.fun(f)
-	reducable <- to_pairs(x)
+	if (length(x) < 2) return (x)
+	is.factor(x) %throws% stopf (
+		'%s x may not be a factor; actual value was %s (%s)',
+		func_call, deparse(x), paste0(class(x), collapse = ', '))
 	
-	while (length(reducable) > 1) {
-		
-		reducable <- to_pairs(
-			call_mclapply(
-				function (val_pair) {
-					
-					with (val_pair,	
-						if (is.null(second)) {
-							first
-						} else {
-							f(first, second)
-						}) 
-				},	
-				x = reducable, paropts))
+	g <- function (x) {
+		if (length(x) == 2) f( x[[1]], x[[2]] ) else x[[1]]	
 	}
-	with (reducable[[1]], f(first, second))
+
+	final <- iterateWhile(
+		function (reducable) {
+			group_into(call_mclapply(g, reducable, paropts), size = 2)
+		},
+		function (reducable) {
+			length(reducable) == 1
+		},
+		group_into(x, size = 2))
+	
+	g( final[[1]] )
 }

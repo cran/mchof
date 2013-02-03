@@ -1,48 +1,50 @@
-
 #' @description mcPartition returns a list of two lists; a list for which a predicate 
-#' returns true, and a list for which a predicate returns false
+#' returns true, and a list for which a predicate returns false.
 #' 
 #' @title mcPartition
-#' @author Ryan Grannell
 #' 
 #' @export
-#' @param f a unary function that returns a boolean value
-#' @param x a vector or list
+#' @param f a unary function that returns a boolean value, or a string
+#' giving the name of such a function.
+#' @param x a list or vector.
 #' @param paropts a list of parameters to be handed to 
-#'    \code{mclapply} (see details)
-#'    
-#' @details NA values obtained during logical filtering are assumed to be FALSE,
-#' as with other functions in this package. The user can modify this behaviour
-#' by making sure the argument f returns TRUE is a value is NA under coersion. 
+#'    mclapply (see \link{mchof}).
+#'
+#' @return returns a list of two lists; the first list contains the values 
+#' for which f returned true, the other contains values that returned false or NA. 
+#' If the list of true/false elements is empty then the value of that slot is list()
+#' if x is a list, and a typed vector such as integer(0) if x is a vector. mcPartition
+#' NULL always returns NULL.
 #' 
-#' @seealso see \code{\link{mclapply}} for more details about the parallel
-#' backend being employed, and \code{\link{mcFilter}} for a function that returns
-#' only the values for which f returns TRUE.
-#'    
-#' @examples
-#' # partition a set into even and odd numbers
-#' mcPartition ( function (x) x %% 2, 1:10, paropts = list(mc.cores = 2)) 
-#' # divide a set of combinations into two based on a predicate
-#' mcPartition(
-#'	f = function(pair){
-#'		val <- sum(unlist(pair))
-#'		if (val > 8) TRUE else FALSE
-#'	},
-#'	x = apply(combn(8, 3), 2, list),
-#'	paropts = list(mc.cores = 2))
-#' @keywords mcPartition 
+#' @seealso see \code{\link{mcReject}} for a function that 
+#' returns the values for which f returns false or NA, and
+#' \code{\link{mcFilter}} for a function that returns the values for 
+#' which f returns true.
+#'
+#' @keywords mcPartition
+#' @example inst/examples/examples-partition.r
 
 mcPartition <- function (f, x, paropts = NULL) {
 	# returns two lists; a list for which f returns 
 	# true, and a list for which f returns false
-		
-	f <- match.fun(f)
-	if (is.null(x)) return(x)
-	if (is.factor(x)) stop('x may not be a factor')
 	
-	ind <- as.logical(call_mclapply(f, x, paropts))
-
-	list (
-		x[!is.na(ind) & ind],
-		x[is.na(ind) | !ind])
+	func_call <- paste0( deparse(match.call()), ':' )
+	
+	missing(f) %throws% stopf (
+		'%s a function (or function name) f is required but was missing',
+		func_call)
+	missing(x) %throws% stopf (
+		'%s list/vector x is required but was missing',
+		func_call)
+	
+	f <- match.fun(f)
+	if (is.null(x)) return (NULL)
+	is.factor(x) %throws% stopf (
+		'%s x may not be a factor; actual value was %s (%s)',
+		func_call, deparse(x), paste0(class(x), collapse = ', '))
+	
+	ind <- as.logical(unlist(call_mclapply(f, x, paropts)))
+	true_ind <- !is.na(ind) & ind
+	
+	list (x[true_ind], x[!true_ind])
 }

@@ -1,11 +1,43 @@
+Version 0.3
+------------------------------------------------------------------------------
+
+New Functions:
+
+* mcReject: split a list into two lists based on a predicate.
+* mcFold: applies an associative binary operator 
+ to a list (eg. +, *, rbind) with an initial value, returning a single element. 
+* mcOne: applies a predicate to a list, count the number of matches,
+ returns true if only one match was found.
+mcAll: applies a predicate to a list, count the number of matches,
+ returns true if every element matched.
+mcAny: applies a predicate to a list, count the number of matches,
+ returns true if one or more elements were matched.
+
+Improvements:
+
+* significant improvements made to the documentation.
+* error reporting improved; data that triggered the fail and its class now displayed
+for all internally-triggered errors.
+* performance improved significantly, particularily for small lists when mc.cores = 1
+* added an alias mcSelect for mcFilter, to complement mcReject
+
+Bug Fixes:
+* bug with option handling fixed.
+* errors in documentation fixed.
+
+API Changes:
+* mcZip & mcZipWith now takes a variable number of arguments;
+to zip 1:4, 5:8, 9:12 you would now use mcZip(1:4, 5:8, 9:12, paropts = list(mc.cores = 2))
+instead of mcZip(list(1:4, 5:8, 9:12), paropts = list(mc.cores = 2)) 
+
 Version 0.2 (2013-05-03)
 ------------------------------------------------------------------------------
 
 New Functions:
 
-* mcPartition: split a list into two lists based on a predicate
-* mcZipWIth/mcZip: takes n lists/vectors, generates a list of n-tuples.
-* mcUnzipWith/mcUnzip: takes a list of n-tuples, returns n lists
+* mcPartition: split a list into two lists based on a predicate.
+* mcZipWith/mcZip: takes n lists/vectors, generates a list of n-tuples.
+* mcUnzipWith/mcUnzip: takes a list of n-tuples, returns n lists.
 
 New Features:
 
@@ -14,5 +46,5 @@ options(mc.cores) <- 2
 
 Bug Fixes:
 
-* error reporting improved
-* errors in documentation fixed
+* error reporting improved.
+* errors in documentation fixed.

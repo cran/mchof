@@ -1,58 +1,75 @@
-#' @description mcUnzipWith is the inverse function of mcZipWith; it takes
-#' a list of n element lists, makes returns n lists and applies a function to
-#' these lists before returning these lists
-#'
+#' @description mcUnzipWith takes a list of n element lists, returns n 
+#' lists and returns the result of calling f with each list.
+#' 
 #' @title mcUnzipWith
-#' @author Ryan Grannell
 #' 
 #' @export
-#' @param f a function that takes a single n-element list
-#' @param x a list of lists
+#' @param f a function that takes n arguments, or a string giving the name of 
+#' such a function.
+#' @param x a list of lists or vectors
 #' @param paropts a list of parameters to be handed to 
-#'    \code{mclapply} (see details)
+#'    mclapply (see \link{mchof}).
 #'    
-#' @details Names are 
-#' dropped without warning during unzipping; named outputs are given in the 
-#' example below
+#' @details list names are dropped without warning during unzipping; an example below shows how to add
+#' names to the output list. NULL elements in x are automatically removed from x. The empty list is not 
+#' removed in order act as a 'zero' to preserve useful structural identities.
 #' 
-#' @seealso see \code{\link{mclapply}} for more details about the parallel
-#' backend being employed, \code{\link{mcZipWith}} for the inverse of 
-#' this function and \code{\link{mcUnzip}} for a variant of this function.
+#' the input lists are assumed to be of equal length; if they are not excess elements are discarded
+#' without warning.
+#' 
+#' @seealso see \code{\link{mcZipWith}} for the inverse of 
+#' this function and \code{\link{mcUnzip}} for a shorthand variant of this function with
+#' f set to identity.
 #' 
 #' @keywords mcUnzipWith
+#' @example inst/examples/examples-unzipwith.r
 
 mcUnzipWith <- function (f, x, paropts = NULL) {
 	# rough inverse of mcZipWith: mcUnzipWith ( mcZipWith (x) ) |-> x 
+	# takes a list of n-tuples, returns n lists
+	# returns the result of mapping f over this new list. 
+	# excess elements are discarded. 
+
+	func_call <- deparse(match.call())
+	
+	missing(f) %throws% stopf (
+		'%s a function (or function name) f is required but was missing',
+		func_call)
+	missing(x) %throws% stopf (
+		'%s list/vector x is required but was missing',
+		func_call)
 	
 	f <- match.fun(f)
 	if (is.null(x)) return (NULL)
-	if (is.list(x) && length(x) == 0) return (list())
+	if (length(x) == 0) return (list())
+
+	sublist_info <- sapply(x, function (elem) {
+		c(
+			factor = inherits(elem, "factor"),
+			not_null = !is.null(elem), length = length(elem))
+	})
+
+	any(sublist_info["factor",]) %throws% stopf(
+		"%s elements %s were factors)",
+		func_call,
+		paste0(which(sublist_info["factor",]), collapse = ", "))
+
+	min_length <- min(sublist_info["length",])
 	
-	lists <- Filter(
-		function (li) {
+	if (min_length == 0) return (list())
+
+	which_not_null <- which(sublist_info["not_null",] == 1)
+
+	call_mclapply(
+		function (ind) {
+			# get the ind-th element in each sublist,
+			# add to a list, apply f to that list
 			
-			if (inherits(li, 'factor')) stop('factors are not allowed')
-			
-			!is.null(li) && any(c('list', 'vector') %in% is(li))
-		}, x)
-	
-	shortest_tuple <- min(sapply(x, length))
-	
-	to_unzip <- Map (
-		function (li) li[seq_len(shortest_tuple)], 
-		lists)
-	
-	unzipped <- call_mclapply (
-		f = function (ind) {
-			lapply (to_unzip, function (x) x[[ind]])
+			do.call(f, lapply( x, function (sublist) sublist[[ind]] ))
 		},
-		x = seq_len(shortest_tuple), 
-		paropts)
-	
-	call_mclapply (
-		f = f,	
-		x = unzipped,
-		paropts )
+		seq_len(min_length),
+		paropts
+	)
 }
 
 #' @description mcUnzip is the inverse function of mcZip; it takes a list 
@@ -63,21 +80,27 @@ mcUnzipWith <- function (f, x, paropts = NULL) {
 #' @author Ryan Grannell
 #' 
 #' @export
-#' @param x a list of lists
+#' @param x a list of lists or vectors
 #' @param paropts a list of parameters to be handed to 
-#' \code{mclapply} (see details)
-#'    
-#' @details mcUnzip discards excess elements, as with mcZip. 
+#'    mclapply (see \link{mchof}).
+#' 
+#' @details list names are dropped without warning during unzipping; an example below shows how to add
+#' names to the output list. NULL elements in x are automatically removed from x. The empty list is not 
+#' removed in order act as a 'zero' to preserve useful structural identities.
+#' 
+#' the input lists are assumed to be of equal length; if they are not excess elements are discarded
+#' without warning.
 #' 
 #' @seealso see \code{\link{mcZip}} for the inverse of this function, 
-#' \code{\link{mcUnzipWith}} for a more general version of this function and 
-#' \code{\link{mclapply}} for more details about the parallel backend being employed. 
+#' \code{\link{mcUnzipWith}} for a more general version of this function.
 #'    
 #' @keywords mcUnzip
+#' @example inst/examples/examples-unzip.r
 
 mcUnzip <- function (x, paropts = NULL) {
 	# inverse of mcZip
-
-	mcUnzipWith(f = identity, x, paropts = paropts)
+	
+	var_identity <- function (...) list(...)
+	mcUnzipWith(f = var_identity, x, paropts = paropts)
 	
 }

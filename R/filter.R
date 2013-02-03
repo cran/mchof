@@ -1,61 +1,61 @@
+#'
+#' @title mcFilter
+#' @aliases mcSelect
 #' 
 #' @description mcFilter extracts the elements of a vector or list for 
-#' which the function \code{f} returns \code{TRUE}, in parallel.
+#' which the function \code{f} returns \code{TRUE}.
 #' 
-#' @title mcFilter
-#' @author Ryan Grannell
+#' @usage mcFilter(f, x, paropts = NULL)
+#' 
+#' mcSelect(f, x, paropts = NULL)
 #' 
 #' @export
-#' @param f a unary function that returns a boolean value
-#' @param x a list or vector
+#' @param f a unary function that returns a boolean value, or a string
+#' giving the name of such a function.
+#' @param x a list or vector.
 #' @param paropts a list of parameters to be handed to 
-#'    \code{mclapply} (see details)
+#'    mclapply (see \link{mchof}).
 #'    
-#' @details mcFilter applies f to each element of x, coerces the result to a logical value, and returns the values
-#' for which f returns TRUE. NA values obtained during logical filtering
-#' are assumed to be FALSE, as with \code{Filter}. The user can modify this behaviour
-#' by making sure the argument f returns TRUE is a value is NA under coersion.
+#' @details mcFilter applies f to each element of x, coerces the result to a logical value, 
+#' and returns the values for which f returns TRUE. NA's obtained while applying f to x will 
+#' be assumed to be FALSE. the user can sidestep this behaviour easily, 
+#' if necessary (see \link{mchof}).
 #' 
-#' @seealso see \code{\link{Filter}} for a non-parallel equivelant of this 
-#'     function, \code{\link{mclapply}} for more details about the parallel
-#'     backend being employed. 
+#' @return returns the elements of x for which f returned true. If x is a list and no elements
+#' returned true, returns list(). If x is a vector and no elements returns true, returns a typed 
+#' vector of length(0). x = NULL always returns NULL.
+#' 
+#' @seealso see \code{\link{mcReject}} for a counterpart to this function, and
+#' \code{\link{mcPartition}} for a function that combines mcFilter and mcReject
 #'    
-#' @examples
-#' # remove NA values from a vector 
-#' p <- function(x) !is.na(x)
-#' mcFilter(p, c(3,2,6,NA, 2))
-#' 
-#' # the same example, in parallel
-#' p <- function(x) !is.na(x)
-#' mcFilter(p, c(3,2,6,NA, 2, list(mc.cores = 2)))
-#' 
-#' # find all even numbers in a vector of numbers 
-#' 
-#' even_ints <- function(x){
-#'     Filter(
-#'         f = function(y) if(is.integer(y) && !(y %% 2)) TRUE else FALSE,
-#' 	       x)
-#' }
-#' even_ints(c(1L,2L,3L,4L,5L,6L,7L,8L,9L,10L))
-#'
-#' # a more advanced example, using anonymous functions to
-#' # filter out combinations that don't meet a predicate 
-#' mcFilter(
-#'     f = function(pair){
-#'         val <- sum(unlist(pair))
-#'  	   if(val > 8) TRUE else FALSE
-#'     }, 
-#'     x = apply(combn(8, 3), 2, list),
-#'     paropts = list(mc.cores = 2))  
-#' @keywords mcFilter
+#' @example inst/examples/examples-filter.r 
+#' @keywords mcFilter mcSelect
 
 mcFilter <- function (f, x, paropts = NULL) {
-	# multicore version of the Filter function
+	# returns x[i] such that f(x[i]) is true
+	
+	func_call <- paste0( deparse(match.call()), ':' )
+
+	missing(f) %throws% stopf (
+		'%s a function (or function name) f is required but was missing',
+		func_call)
+	missing(x) %throws% stopf (
+		'%s list/vector x is required but was missing',
+		func_call)
 	
 	f <- match.fun(f)
-	if (is.null(x)) return(x)
-	if (is.factor(x)) stop('x may not be a factor')
+	if (is.null(x)) return (NULL)
+	if (length(x) == 0) return (x)
+	is.factor(x) %throws% stopf (
+		'%s x may not be a factor; actual value was %s (%s)',
+		func_call, deparse(x), paste0(class(x), collapse = ', '))
 	
-	ind <- as.logical(call_mclapply(f, x, paropts))
-	x[!is.na(ind) & ind]
+	ind <- as.logical(unlist(call_mclapply(f, x, paropts)))
+	true_ind <- !is.na(ind) & ind
+	
+	x[true_ind]	
 }
+
+#' @export
+
+mcSelect <- mcFilter

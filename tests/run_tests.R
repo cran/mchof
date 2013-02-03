@@ -1,5 +1,10 @@
 
 library(mchof)
+library(itertools)
 library(testthat)
 
-test_dir('/home/rgrannell1/Dropbox/R directory/mchof/inst/tests/')
+options(forall_time = 0.1)
+	
+	test_package("mchof")
+
+options(forall_time = NULL)

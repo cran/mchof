@@ -1,111 +1,110 @@
-#' @description mcZipWith takes n lists/vectors, generates a list of n element lists,
-#' and returns the result of mapping f over this new list. 
-#' 
+#'   
 #' @title mcZipWith
-#' @author Ryan Grannell
+#' 
+#' @description mcZipWith takes n lists or vectors, generates a list of n element lists,
+#' and returns the result of calling f with each n element list. 
 #' 
 #' @export
-#' @param f a function that takes a single n-element list
-#' @param x a list of lists
+#' 
+#' @param f a function that takes n arguments, or a string
+#' giving the name of such a function.
+#' @param ... several lists or vectors.
 #' @param paropts a list of parameters to be handed to 
-#'    \code{mclapply} (see details)
+#'    mclapply (see \link{mchof}).
 #'    
-#' @details Names are dropped without warning during zipping; 
-#' named outputs are given in the example below. 
-#' mcZipWith discards excess elements without warning: for example 
-#' \code{list (1, 2), list (3, 4, 5)} becomes 
-#' \code{list (f( list(1, 3) ), f( list(2, 4) ))}. 
+#' @return returns the result of mapping f over a list of n element lists.
+#'    
+#' @details list names are dropped without warning during zipping; an example below shows how to add
+#' names to the output list. NULL elements in x are automatically removed from x. The empty list is not 
+#' removed in order act as a 'zero' to preserve useful structural identities.
 #' 
-#' @seealso see \code{\link{mclapply}} for more details about the parallel
-#'     backend being employed, \code{\link{mcZip}} for a varient of this function
-#'     and \code{\link{mcUnzipWith}} for the inverse of this function. 
-#' @examples 
-#' # adding indices to a list
-#' mcZipWith (
-#'     function (x) {
-#'         list(x[[2]], ind = x[[1]])
-#'     }, list (list(1:10), list(letters[1:10]))
-#' )
+#' the input lists are assumed to be of equal length; if they are not excess elements are discarded
+#' without warning.
 #' 
-#' # adding names to output
-#' mcZipWith (
-#'     function (x) {
-#'         list(id = x[[1]] , name = x[[2]])
-#'     }, 
-#'     list ( list('001', '002', '003'),
-#'     list('John', 'Jane', 'Jill')))   
+#' @seealso see \code{\link{mcZip}} for a varient of this function
+#'     and \code{\link{mcUnzipWith}} for the inverse of this function.
 #' @keywords mcZipWith
+#' @example inst/examples/examples-zipwith.r
 
-mcZipWith <- function (f, x, paropts = NULL) {
+mcZipWith <- function (f, ..., paropts = NULL) {
 	# takes n lists/vectors, generates a list of n-tuples. 
 	# returns the result of mapping f over this new list. 
 	# excess elements are discarded. 
 	
-	# list (x1, x2), list (y1, y2)  |-> 
-	# list ( list(x1, y1), list(x2, y2) )
+	func_call <- deparse(match.call())
 	
+	missing(f) %throws% stopf (
+		'%s a function (or function name) f is required but was missing',
+		func_call)
+	
+	x <- list(...)
 	f <- match.fun(f)
-	if (is.null(x)) return (NULL)
-	if (is.list(x) && length(x) == 0) return (list())
+
+	if (is_list0(x)) return (list())
+	if (is.null( x[[1]] )) return (NULL)
 	
-	lists <- Filter(
-		function (li) {
-
-			if (inherits(li, 'factor')) stop('factors are not allowed')
-			!is.null(li) && any(c('list', 'vector') %in% is(li))
-
-		}, x)
-
-	shortest <- min(sapply (lists, length))
-
-	if (shortest == 0) {
-		return(list())
-	}
+	sublist_info <- sapply(x, function (elem) {
+		c(
+			factor = inherits(elem, "factor"),
+			not_null = !is.null(elem),
+			length = length(elem))
+	})
 	
-	to_zip <- Map (
-		function (li) li[seq_len(shortest)], 
-		lists)
+	any(sublist_info["factor",]) %throws% stopf(
+		"%s elements %s were factors)",
+		func_call,
+		paste0(which(sublist_info["factor",]), collapse = ", "))
 
-	zipped <- call_mclapply (
-		f = function (ind) {
-			lapply (to_zip, function (x) x[[ind]])
-		},	
-		x = seq_len(shortest), 
-		paropts )
+	min_length <- min(sublist_info["length",])
 	
-	call_mclapply (
-		f = f,	
-		x = zipped,
-		paropts )
+	if (min_length == 0) return (list())
+
+	which_not_null <- which(sublist_info["not_null",] == 1)
+	
+	call_mclapply(
+		function (ind) {
+			# get the ind-th element in each sublist,
+			# add to a list, apply f to that list
+			
+			do.call(f, lapply( x, function (sublist) sublist[[ind]] ))
+		},
+		seq_len(min_length),
+		paropts
+	)
 }
 
-#' @description mcZip takes n lists/vectors, and generates a list of n element lists.
-#' It is a special case of mcZipWith
+#' @description mcZip takes n lists/vectors, and generates a list 
+#' of n element lists. It is a special case of mcZipWith
 #' 
 #' @title mcZip
-#' @author Ryan Grannell
 #' 
 #' @export
-#' @param x a list of lists
+#' @param ... several lists or vectors.
 #' @param paropts a list of parameters to be handed to 
-#'    \code{mclapply} (see details)
-#'    
-#' @details mcZip discards excess elements without warning: for example 
-#' list (1, 2), list (3, 4, 5) becomes list (list(1, 3), list(2, 4)). 
+#'    mclapply (see \link{mchof}).
 #' 
-#' @seealso see \code{\link{mclapply}} for more details about the parallel
-#'     backend being employed, \code{\link{mcUnzip}} for the inverse of 
+#' @return returns a list of n element lists.
+#'    
+#' @details list names are dropped without warning during zipping; an example below 
+#' shows how to add
+#' names to the output list. NULL elements in x are automatically removed from x.
+#'  The empty list is not 
+#' removed in order act as a 'zero' to preserve useful structural identities.
+#' 
+#' the input lists are assumed to be of equal length; if they are not excess 
+#' elements are discarded without warning.
+#' 
+#' @seealso see \code{\link{mcUnzip}} for the inverse of 
 #'     this function, and \code{\link{mcZipWith}} for a more general version 
-#'     of this function. 
-#' @examples 
-#' # zip a name list and an id list into name:id pairs
-#' mcZip (list( list('Jack', 'Jane', 'Joe'), list(1, 2, 3)))
+#'     of this function.
 #' 
 #' @keywords mcZip
+#' @example inst/examples/examples-zip.r
 
-mcZip <- function(x, paropts = NULL) {
+mcZip <- function(..., paropts = NULL) {
 	# special case of mcZipWith: applies identity to result
-	
-	mcZipWith (f = identity, x, paropts = paropts)
+
+	var_identity <- function (...) list(...)
+	mcZipWith (f = var_identity, ..., paropts = paropts)
 
 }
